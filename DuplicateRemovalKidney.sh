@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH -p batch
 #SBATCH -N 1
-#SBATCH -n 32
-#SBATCH --time=10:00:00
+#SBATCH -n 16
+#SBATCH --time=06:00:00
 #SBATCH --mem=32GB
 #SBATCH -o /fast/users/a1649239/GeneAnalysis/AddrenalGlandNasa/StevesScriptOutput/runPipeline_%j.out
 #SBATCH -e /fast/users/a1649239/GeneAnalysis/AddrenalGlandNasa/StevesScriptOutput/runPipeline_%j.err
@@ -23,7 +23,7 @@ sambamba=/data/biohub/local/sambamba_v0.6.6
 featureCounts=/data/biohub/local/subread-1.5.2-Linux-x86_64/bin/featureCounts
 
 ## Directories
-ROOT=/fast/users/a1649239/GeneAnalysis/TestNasaPairedEnd
+ROOT=/fast/users/a1649239/GeneAnalysis/KidneyNasa
 REFS=/data/biohub/Refs/Mus_musculus/ensembl85
 MERGEDATA=${ROOT}/01_mergedData/fastq
 TRIMDATA=${ROOT}/02_trimmedData
@@ -50,12 +50,14 @@ z10_hisat2index=${REFS}/HiSat2/grcm38/genome
 z10_gtf=${REFS}/gencode.vM11.primary_assembly.annotation.gtf
 
 ## Cores
-CORES=32
+CORES=16
 
 
 module load picard/2.2.4-Java-1.8.0_71
 
-java -jar /apps/software/picard/2.2.4-Java-1.8.0_71/picard.jar
+##--------------------------------------------------------------------------------------------##
+## Deduplicate using picard
+##--------------------------------------------------------------------------------------------##
 
 
 for BAMFILES in ${ALIGNDATA}/bams/*.bam
@@ -64,3 +66,22 @@ do
 java -jar /apps/software/picard/2.2.4-Java-1.8.0_71/picard.jar MarkDuplicates INPUT= ${BAMFILES} OUTPUT=${ALIGNDATA}/duplicatesRemoved/$(basename ${BAMFILES} trim1.fastq.gz_sorted.bam)Dedup_trim1.fastq.gz_sorted.bam METRICS_FILE= ${ALIGNDATA}/duplicatesRemoved/$(basename ${BAMFILES} trim1.fastq.gz_sorted.bam)Dedup_trim1.fastq.gz_sorted.txt REMOVE_DUPLICATES=true VALIDATION_STRINGENCY=LENIENT
 
 done
+
+
+##--------------------------------------------------------------------------------------------##
+## featureCounts
+##--------------------------------------------------------------------------------------------##
+
+## Feature Counts - obtaining all sorted bam files
+sampleList=`find ${ALIGNDATA}/duplicatesRemovedSamTools -name "*_sorted.bam" | tr '\n' ' '`
+
+## Running featureCounts on the sorted bam files
+${featureCounts} -Q 10 \
+  -p \
+  -T ${CORES} \
+  -a ${z10_gtf} \
+  -o ${ALIGNDATA}/featureCounts/counts.out ${sampleList}
+
+## Storing the output in a single file
+cut -f1,7- ${ALIGNDATA}/featureCounts/counts.out | \
+sed 1d > ${ALIGNDATA}/featureCounts/genes.out

@@ -10,7 +10,7 @@
 #SBATCH --mail-type=FAIL
 
 ## Full run of the Hypoxia data.
-##This Script is for single reads
+##This Script is for paired end reads
 ## Modules
 module load fastqc/0.11.4
 module load HISAT2/2.1.0-foss-2016b
